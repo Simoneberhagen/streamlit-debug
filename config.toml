@@ -1,0 +1,16 @@
+[project]
+lob  = "Hogar"
+year = 2025
+
+[data]
+path_df = "./data/raw_data.prq"
+path_formats_table = "./data/formats.xlsx"
+path_figures_dict = "./data/figures_univariates.pkl"
+path_tables_dict = "./data/tables_univariates.pkl"
+path_formats = "./data/formats.xlsx"
+
+[dictionaries]
+path_data_dict = "./metadata/data_dict.xlsx"
+path_model_dict = "./metadata/model_dict.xlsx"
+path_formats_dict = "./metadata/formats_dict.xlsx"
+data_dict_sheet = "2025_all"
