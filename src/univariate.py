@@ -366,15 +366,16 @@ def univariate_plotly(df,
 
     for irf, ow_table in ow_tables.items():
         table = ow_table[0]
-        base_level_index = None
+        
+        base_level_pos = None
+        # First, check for the label passed from the function argument.
         if base_level is not None:
             if base_level in table['label'].values:
-                base_level_index = table[table['label'] == base_level].index[0]
+                base_level_pos = np.where(table['label'].values == base_level)[0][0]
+        # If no label was passed or found, fall back to path_fac logic.
+        elif path_fac:
+            base_level_pos = ow_table[1] - 1  # Bins in emblem are counted from 1
 
-        if path_fac:
-            base_level = ow_table[1] - 1  # Bins in emblem are counted from 1
-        else:
-            base_level = None
         x = np.arange(0, len(table), 1)
         data2 = table[w]
         for resp_name in [k for k in cols if k is not w and k not in loop_on]:
@@ -414,9 +415,9 @@ def univariate_plotly(df,
             ntraces += 1
 
         # Base level
-        if base_level_index is not None:
+        if base_level_pos is not None:
             fig.add_trace(
-                go.Bar(x=[x[base_level_index]], y=[data2[base_level_index]], name="Base Level",
+                go.Bar(x=[x[base_level_pos]], y=[data2.iloc[base_level_pos]], name="Base Level",
                     marker_color='red',
                     visible=visible,
                     opacity=opacity,
@@ -431,9 +432,9 @@ def univariate_plotly(df,
             )
 
         # All levels
-        if base_level_index is not None:
-            x_rf = np.delete(x, base_level_index)
-            data2_rf = data2.drop(index=base_level_index)
+        if base_level_pos is not None:
+            x_rf = np.delete(x, base_level_pos)
+            data2_rf = data2.drop(data2.index[base_level_pos])
         else:
             x_rf = x
             data2_rf = data2
