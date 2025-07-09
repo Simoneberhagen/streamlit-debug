@@ -179,6 +179,7 @@ def univariate_plotly(df,
             y,
             w,
             w_name='% Weight',
+            base_level=None,
             path_fac=None,
             response_format_table=".4f",
             response_format_plot=None,
@@ -365,6 +366,11 @@ def univariate_plotly(df,
 
     for irf, ow_table in ow_tables.items():
         table = ow_table[0]
+        base_level_index = None
+        if base_level is not None:
+            if base_level in table['label'].values:
+                base_level_index = table[table['label'] == base_level].index[0]
+
         if path_fac:
             base_level = ow_table[1] - 1  # Bins in emblem are counted from 1
         else:
@@ -408,9 +414,9 @@ def univariate_plotly(df,
             ntraces += 1
 
         # Base level
-        if path_fac:
+        if base_level_index is not None:
             fig.add_trace(
-                go.Bar(x=[x[base_level]], y=[data2[base_level]], name="Base Level",
+                go.Bar(x=[x[base_level_index]], y=[data2[base_level_index]], name="Base Level",
                     marker_color='red',
                     visible=visible,
                     opacity=opacity,
@@ -425,9 +431,9 @@ def univariate_plotly(df,
             )
 
         # All levels
-        if path_fac:
-            x_rf = np.delete(x, base_level)
-            data2_rf = data2.drop(index=base_level)
+        if base_level_index is not None:
+            x_rf = np.delete(x, base_level_index)
+            data2_rf = data2.drop(index=base_level_index)
         else:
             x_rf = x
             data2_rf = data2

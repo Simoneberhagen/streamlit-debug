@@ -72,6 +72,12 @@ selected_model = st.sidebar.selectbox("Select a Model:", model_dict.index)
 weight = model_dict.loc[selected_model, "exp"]
 resp = model_dict.loc[selected_model, "response"]
 
+# get data in memory from the spark connection
+if "pq_file" in st.session_state and st.session_state.pq_file is not None:
+    df_var_full = st.session_state.pq_file.read(use_pandas_metadata=True).to_pandas()
+else:
+    st.error("Data file not loaded. Please restart the app or check the file path in config.toml.")
+    st.stop()
 
 # Sidebar category selector
 selected_cat = st.sidebar.selectbox("Select a Category:", np.sort(list(st.session_state.cover_map.keys())))
@@ -82,22 +88,39 @@ labels_to_factors = {row["LABEL"]: row["Factores"] for _, row in data_dict.iterr
 # Dropdown menu to select the factor based on selected category
 selected_fac = labels_to_factors[st.sidebar.selectbox("Select a factor:", labels_to_factors.keys())]
 
-# get parameters for the selected factor
-factor_params_df = st.session_state.formats_dict[st.session_state.formats_dict.factor==selected_fac]
+# format the in-memory dataframe and generate a plot
+fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
+df_var = df_var_full[[selected_fac, resp, weight]].copy()
+df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
 
-if not factor_params_df.empty:
-    factor_params = factor_params_df.iloc[0]
+# Calculate univariate table to get levels and weights
+univariate_df, _ = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, w=weight, output=True, show_fig=False, retfig=True)
+univariate_table = univariate_df[selected_fac+"_formatted"][0]
+
+# Determine default base level
+non_base_labels = ["Missing", "Other", "NP"]
+eligible_levels = univariate_table[~univariate_table['label'].isin(non_base_labels)]
+if not eligible_levels.empty:
+    default_base_level = eligible_levels.loc[eligible_levels[weight].idxmax()]['label']
 else:
-    # If the factor is not in the dictionary, use an empty Series and rely on defaults from .get()
-    factor_params = pd.Series(dtype='object')
+    default_base_level = None
 
-# Distribution
-dropdown_options = ["uniform", "normal", "discrete", "categorical"]
-dist_val = factor_params.get("distribution", "uniform")
-if dist_val not in dropdown_options:
-    dist_val = "uniform"  # default to uniform if value is not in list
+# Sidebar controls for base level
+lock_base_level = st.sidebar.checkbox("Lock Base Level", value=True)
 
-is_categorical = dist_val == "categorical"
+if lock_base_level:
+    selected_base_level = default_base_level
+    st.sidebar.selectbox("Base Level", [selected_base_level] if selected_base_level else [], disabled=True)
+else:
+    level_options = list(univariate_table['label'])
+    filtered_options = [level for level in level_options if level not in non_base_labels]
+    
+    index = 0
+    if default_base_level in filtered_options:
+        index = filtered_options.index(default_base_level)
+
+    selected_base_level = st.sidebar.selectbox("Base Level", filtered_options, index=index, disabled=False)
+
 
 # Sidebar toggles for format parameters and table
 edit_format_table = st.sidebar.toggle("Edit Format Table", value=False)
@@ -108,21 +131,10 @@ col1, col2 = st.columns([2, 1])
 
 with col1:
     # Display each plot in its respective column
-    # get data in memory from the spark connection
-    if "pq_file" in st.session_state and st.session_state.pq_file is not None:
-        df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
-    else:
-        st.error("Data file not loaded. Please restart the app or check the file path in config.toml.")
-        st.stop()
-        
-    # format the in-memory dataframe and generate a plot
-    fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
-    df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
-
     required_cols = [selected_fac + "_formatted", resp, weight]
     missing_cols = [col for col in required_cols if col not in df_var.columns]
     table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
-                                       w=weight, w_name=weight, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
+                                       w=weight, w_name=weight, base_level=selected_base_level, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
     if view_mode == "Graph":
         st.plotly_chart(fig, use_container_width=True)
@@ -132,13 +144,13 @@ with col1:
         
         new_names = {
             "label": "Label",
-            weight: "Weight %",
-            f"{weight}_Sum": f"Total {weight}",
-            resp: f"Avg. {resp}"
+            weight: f"Weight % ({selected_model})",
+            f"{weight}_Sum": f"Total Weight ({selected_model})",
+            resp: f"Avg. {resp} ({selected_model})"
         }
         univariate_table.rename(columns=new_names, inplace=True)
         
-        display_columns = ["Label", f"Total {weight}", "Weight %", f"Avg. {resp}"]
+        display_columns = ["Label", f"Total Weight ({selected_model})", f"Weight % ({selected_model})", f"Avg. {resp} ({selected_model})"]
         
         st.dataframe(univariate_table[display_columns], use_container_width=True)
 
