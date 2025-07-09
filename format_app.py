@@ -171,24 +171,14 @@ with col2:
     if not factor_params_df.empty:
         factor_params = factor_params_df.iloc[0]
     else:
-        # Create a default parameter set if the factor is not in the dictionary
-        factor_params = pd.Series({
-            "factor": selected_fac,
-            "distribution": "uniform",
-            "num_bins": 32,
-            "floor": np.nan,
-            "lowest": np.nan,
-            "cap": np.nan,
-            "highest": np.nan,
-            "missing_values": "",
-            "np_values": ""
-        })
+        # If the factor is not in the dictionary, use an empty Series and rely on defaults from .get()
+        factor_params = pd.Series(dtype='object')
 
     # Distribution
     dropdown_options = ["uniform", "normal", "discrete", "categorical"]
-    dist_val = factor_params["distribution"]
+    dist_val = factor_params.get("distribution", "uniform")
     if dist_val not in dropdown_options:
-        dist_val = "uniform" # default to uniform if value is not in list
+        dist_val = "uniform"  # default to uniform if value is not in list
     
     is_categorical = dist_val == "categorical"
 
@@ -197,22 +187,25 @@ with col2:
                                    disabled=edit_format_table or is_categorical)
 
     # Number of Bins
-    bins_num = st.number_input("Number of Levels", value=int(factor_params["num_bins"]), disabled=edit_format_table or is_categorical)
+    num_bins_val = factor_params.get("num_bins", 32)
+    if pd.isna(num_bins_val):
+        num_bins_val = 32
+    bins_num = st.number_input("Number of Levels", value=int(num_bins_val), disabled=edit_format_table or is_categorical)
 
     # Create two columns for numerical inputs inside col2
     num_col1, num_col2 = st.columns(2)
 
     with num_col1:
-        floor = st.number_input("Min Value", value=factor_params["floor"], disabled=edit_format_table or is_categorical)
-        lowest = st.number_input("Min Level", value=factor_params["lowest"], min_value=floor if not np.isnan(floor) else None, disabled=edit_format_table or is_categorical)
+        floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
+        lowest = st.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
         # Missing Value
         missing_value = st.text_input("Missing Label", value="Missing", disabled=edit_format_table)
         # NP value
         np_value = st.text_input("NP Label", value="NP", disabled=edit_format_table)
 
     with num_col2:
-        cap = st.number_input("Max Value", value=factor_params["cap"], disabled=edit_format_table or is_categorical)
-        highest = st.number_input("Max Level", value=factor_params["highest"], max_value=cap if not np.isnan(cap) else None, disabled=edit_format_table or is_categorical)
+        cap = st.number_input("Max Value", value=factor_params.get("cap", np.nan), disabled=edit_format_table or is_categorical)
+        highest = st.number_input("Max Level", value=factor_params.get("highest", np.nan), max_value=cap if not pd.isna(cap) else None, disabled=edit_format_table or is_categorical)
         # Missing Value
         missing_value = st.text_input("Missing Value", disabled=edit_format_table)
         # NP value
