@@ -93,6 +93,12 @@ fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAM
 df_var = df_var_full[[selected_fac, resp, weight]].copy()
 df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
 
+# Determine default number of decimals based on factor's data type
+if pd.api.types.is_integer_dtype(df_var[selected_fac]):
+    default_num_decimals = 0
+else:
+    default_num_decimals = 2
+
 # Calculate univariate table to get levels and weights
 univariate_df, _ = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, w=weight, output=True, show_fig=False, retfig=True)
 univariate_table = univariate_df[selected_fac+"_formatted"][0]
@@ -183,9 +189,9 @@ with col2:
         num_bins_val = 32
     bins_num = st.number_input("Number of Levels", value=int(num_bins_val), disabled=edit_format_table or is_categorical)
     
-    num_decimals_val = factor_params.get("num_decimals", 0)
+    num_decimals_val = factor_params.get("num_decimals", default_num_decimals)
     if pd.isna(num_decimals_val):
-        num_decimals_val = 0
+        num_decimals_val = default_num_decimals
     num_decimals = st.number_input("Number of Decimals", value=int(num_decimals_val), disabled=edit_format_table or is_categorical)
 
     floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
