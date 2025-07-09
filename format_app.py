@@ -59,6 +59,7 @@ if 'formats_table' not in st.session_state:
     st.session_state.cover_map = cover_map
     st.session_state.data_dict = data_dict
     st.session_state.formats_dict = pd.read_excel(path_formats_dict)
+    st.session_state.edited_format_table = None
 
 
 # Streamlit app
@@ -101,124 +102,145 @@ is_categorical = dist_val == "categorical"
 # Sidebar toggles for format parameters and table
 edit_format_table = st.sidebar.toggle("Edit Format Table", value=False)
 
-st.sidebar.subheader("Format Parameters")
+# Main layout with two columns
+col1, col2 = st.columns([2, 1])
 
-dropdown_value1 = st.sidebar.selectbox("Format Distribution", dropdown_options, 
-                               index=dropdown_options.index(dist_val),
-                               disabled=edit_format_table or is_categorical)
+with col1:
+    # Display each plot in its respective column
+    # get data in memory from the spark connection
+    if "pq_file" in st.session_state and st.session_state.pq_file is not None:
+        df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
+    else:
+        st.error("Data file not loaded. Please restart the app or check the file path in config.toml.")
+        st.stop()
+        
+    # format the in-memory dataframe and generate a plot
+    fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
+    df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
 
-num_bins_val = factor_params.get("num_bins", 32)
-if pd.isna(num_bins_val):
-    num_bins_val = 32
-bins_num = st.sidebar.number_input("Number of Levels", value=int(num_bins_val), disabled=edit_format_table or is_categorical)
+    required_cols = [selected_fac + "_formatted", resp, weight]
+    missing_cols = [col for col in required_cols if col not in df_var.columns]
+    table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
+                                       w=weight,fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
-floor = st.sidebar.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
-lowest = st.sidebar.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
+    st.plotly_chart(fig, use_container_width=True)
 
-cap = st.sidebar.number_input("Max Value", value=factor_params.get("cap", np.nan), disabled=edit_format_table or is_categorical)
-highest = st.sidebar.number_input("Max Level", value=factor_params.get("highest", np.nan), max_value=cap if not pd.isna(cap) else None, disabled=edit_format_table or is_categorical)
+with col2:
+    st.subheader("Format Parameters")
 
-missing_values_str = st.sidebar.text_input("Missing Values (comma-separated)", value="", disabled=edit_format_table)
-np_values_str = st.sidebar.text_input("NP Values (comma-separated)", value="", disabled=edit_format_table)
+    dropdown_value1 = st.selectbox("Format Distribution", dropdown_options, 
+                                   index=dropdown_options.index(dist_val),
+                                   disabled=edit_format_table or is_categorical)
 
+    num_bins_val = factor_params.get("num_bins", 32)
+    if pd.isna(num_bins_val):
+        num_bins_val = 32
+    bins_num = st.number_input("Number of Levels", value=int(num_bins_val), disabled=edit_format_table or is_categorical)
+    
+    num_decimals_val = factor_params.get("num_decimals", 0)
+    if pd.isna(num_decimals_val):
+        num_decimals_val = 0
+    num_decimals = st.number_input("Number of Decimals", value=int(num_decimals_val), disabled=edit_format_table or is_categorical)
 
-# Button to save the changes to the format and plot the updated univariate
-if st.sidebar.button("Update Format"):
-    if edit_format_table:
-        pass
-    elif not is_categorical:
-        # Parse missing values
-        if missing_values_str:
-            missing_values = [float(x.strip()) for x in missing_values_str.split(",")]
-        else:
-            missing_values = []
+    floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
+    lowest = st.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
 
-        # Parse NP values
-        if np_values_str:
-            np_values = [float(x.strip()) for x in np_values_str.split(",")]
-        else:
-            np_values = []
+    cap = st.number_input("Max Value", value=factor_params.get("cap", np.nan), disabled=edit_format_table or is_categorical)
+    highest = st.number_input("Max Level", value=factor_params.get("highest", np.nan), max_value=cap if not pd.isna(cap) else None, disabled=edit_format_table or is_categorical)
 
-        params = {
+    missing_values_str = st.text_input("Missing Values (comma-separated)", value="", disabled=edit_format_table)
+    np_values_str = st.text_input("NP Values (comma-separated)", value="", disabled=edit_format_table)
+
+    # Button to save the changes to the format and plot the updated univariate
+    if st.button("Update Format"):
+        if edit_format_table:
+            if st.session_state.edited_format_table is not None:
+                st.session_state.formats_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME!="FMT_"+selected_fac]
+                st.session_state.formats_table = pd.concat([st.session_state.formats_table, st.session_state.edited_format_table])
+                st.session_state.edited_format_table = None
+                st.rerun()
+        elif not is_categorical:
+            # Parse missing values
+            if missing_values_str:
+                missing_values = [float(x.strip()) for x in missing_values_str.split(",")]
+            else:
+                missing_values = []
+
+            # Parse NP values
+            if np_values_str:
+                np_values = [float(x.strip()) for x in np_values_str.split(",")]
+            else:
+                np_values = []
+
+            params = {
+                "distribution": dropdown_value1.lower(),
+                "num_bins": bins_num,
+                "num_decimals": num_decimals,
+                "floor": floor,
+                "lowest": lowest,
+                "cap": cap,
+                "highest": highest,
+                "missing_values": missing_values,
+                "np_values": np_values
+            }
+            
+            df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
+            
+            new_format = define_format(df=df_var, var=selected_fac, weight=weight, **params)
+            
+            st.session_state.formats_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME!="FMT_"+selected_fac]
+            st.session_state.formats_table = pd.concat([st.session_state.formats_table, new_format])
+            st.rerun()
+
+    # Button to save the changes to the format and plot the updated univariate
+    if st.button("Save Parameters"):
+        
+        # Get the index of the selected factor
+        idx = st.session_state.formats_dict[st.session_state.formats_dict.factor == selected_fac].index
+        
+        params_to_save = {
+            "factor": selected_fac,
             "distribution": dropdown_value1.lower(),
             "num_bins": bins_num,
+            "num_decimals": num_decimals,
             "floor": floor,
             "lowest": lowest,
             "cap": cap,
-            "highest": highest,
-            "missing_values": missing_values,
-            "np_values": np_values
+            "highest": highest
         }
-        
-        df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
-        
-        new_format = define_format(df=df_var, var=selected_fac, weight=weight, **params)
-        
-        st.session_state.formats_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME!="FMT_"+selected_fac]
-        st.session_state.formats_table = pd.concat([st.session_state.formats_table, new_format])
-        st.rerun()
 
-# Button to save the changes to the format and plot the updated univariate
-if st.sidebar.button("Save Parameters"):
-    
-    # Get the index of the selected factor
-    idx = st.session_state.formats_dict[st.session_state.formats_dict.factor == selected_fac].index
-    
-    params_to_save = {
-        "factor": selected_fac,
-        "distribution": dropdown_value1.lower(),
-        "num_bins": bins_num,
-        "floor": floor,
-        "lowest": lowest,
-        "cap": cap,
-        "highest": highest
-    }
+        if idx.empty:
+            # Add a new row for the new factor
+            new_row_df = pd.DataFrame([params_to_save])
+            st.session_state.formats_dict = pd.concat([st.session_state.formats_dict, new_row_df], ignore_index=True)
+        else:
+            # Update the parameters in the DataFrame for the existing factor
+            for key, value in params_to_save.items():
+                if key != 'factor': # 'factor' is for lookup and should not be overwritten
+                    st.session_state.formats_dict.loc[idx, key] = value
+        
+        # Save the updated DataFrame to Excel
+        st.session_state.formats_dict.to_excel(path_formats_dict, index=False)
+        
+        if edit_format_table and st.session_state.edited_format_table is not None:
+            st.session_state.formats_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME!="FMT_"+selected_fac]
+            st.session_state.formats_table = pd.concat([st.session_state.formats_table, st.session_state.edited_format_table])
+            st.session_state.edited_format_table = None
 
-    if idx.empty:
-        # Add a new row for the new factor
-        new_row_df = pd.DataFrame([params_to_save])
-        st.session_state.formats_dict = pd.concat([st.session_state.formats_dict, new_row_df], ignore_index=True)
-    else:
-        # Update the parameters in the DataFrame for the existing factor
-        for key, value in params_to_save.items():
-            if key != 'factor': # 'factor' is for lookup and should not be overwritten
-                st.session_state.formats_dict.loc[idx, key] = value
-    
-    # Save the updated DataFrame to Excel
-    st.session_state.formats_dict.to_excel(path_formats_dict, index=False)
-    st.sidebar.success("Parameters saved successfully!")
+        st.session_state.formats_table.to_excel(path_formats, index=False)
+        st.sidebar.success("Parameters and formats saved successfully!")
 
 
 # Create a download button
 st.sidebar.download_button(
     label="Download Format Table",
-    data=st.session_state.excel_data,
-    file_name="dataframe.xlsx",
+    data=convert_df_to_excel(st.session_state.formats_table),
+    file_name="formats_table.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     type="primary"
 )
 
-# Display each plot in its respective column
-# get data in memory from the spark connection
-if "pq_file" in st.session_state and st.session_state.pq_file is not None:
-    df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
-else:
-    st.error("Data file not loaded. Please restart the app or check the file path in config.toml.")
-    st.stop()
-    
-# format the in-memory dataframe and generate a plot
-fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
-df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
-
-required_cols = [selected_fac + "_formatted", resp, weight]
-missing_cols = [col for col in required_cols if col not in df_var.columns]
-table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
-                                   w=weight,fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
-
-st.plotly_chart(fig, use_container_width=True)
-
-
 if edit_format_table:
     st.subheader("Format Table")
     format_table_var = st.session_state.formats_table[st.session_state.formats_table["FMTNAME"]=="FMT_"+selected_fac]
-    st.data_editor(data=format_table_var)
+    st.session_state.edited_format_table = st.data_editor(data=format_table_var)

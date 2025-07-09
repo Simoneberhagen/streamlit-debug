@@ -6,7 +6,7 @@ import gpc_utils.sas as su
 
 
 
-def cap_format(format, cap=np.nan, floor=np.nan):
+def cap_format(format, cap=np.nan, floor=np.nan, num_decimals=0):
 
     # find format name
     fmt_name = format.FMTNAME.unique()
@@ -63,7 +63,7 @@ def cap_format(format, cap=np.nan, floor=np.nan):
                 new_row = row.copy()
                 new_row['START'] = floor
                 new_row['SEXCL'] = 'N'  # Include floor
-                new_row["LABEL"] = f"[{floor}; {new_row['END']:.2f}]"
+                new_row["LABEL"] = f"[{floor}; {new_row['END']:.{num_decimals}f}]"
                 new_row["HLO"] = "S"
                 new_rows.append(new_row)
 
@@ -72,7 +72,7 @@ def cap_format(format, cap=np.nan, floor=np.nan):
                 new_row = row.copy()
                 new_row['END'] = cap
                 new_row['EEXCL'] = 'N'  # Include cap
-                new_row["LABEL"] = f"({new_row['START']:.2f}; {cap}]"
+                new_row["LABEL"] = f"({new_row['START']:.{num_decimals}f}; {cap}]"
                 new_row["HLO"] = "S"
                 new_rows.append(new_row)
 
@@ -115,7 +115,7 @@ def add_missing_values(format, missing_values=[], label="Missing"):
 
 
 def define_format(df, var, weight, distribution, cap=np.nan, floor=np.nan, highest=np.nan, lowest=np.nan, 
-                  missing_values=[], np_values=[], num_bins=np.nan, formatter="integer", *args, **kwars):
+                  missing_values=[], np_values=[], num_bins=np.nan, num_decimals=0, *args, **kwars):
 
     # subset the df keeping only values meaningful for the format definition
     filter_mask = (df[var] < floor) | (df[var] > cap) | (df[var].isin(missing_values)) | (df[var].isin(np_values))
@@ -142,12 +142,7 @@ def define_format(df, var, weight, distribution, cap=np.nan, floor=np.nan, highe
         raise ValueError(f"Distribution {distribution} not supported")
     
     # set label format
-    if formatter == "integer":
-        label_format = "{a:.0f}"
-    elif formatter == "decimal":
-        label_format = "{a:.2f}"
-    else:
-        raise ValueError(f"Formatter {formatter} not supported")
+    label_format = f"{{a:,.{num_decimals}f}}"
     
     # generate format table
     _, fmt_table = su.discretizer_w_distribution(vec=df_subset[var],
@@ -159,7 +154,7 @@ def define_format(df, var, weight, distribution, cap=np.nan, floor=np.nan, highe
                                                 label_centroids=False,
                                                 stdize=True)
     # cap format table
-    fmt_table = cap_format(fmt_table, cap=cap, floor=floor)
+    fmt_table = cap_format(fmt_table, cap=cap, floor=floor, num_decimals=num_decimals)
     # add missing value and np value
     if missing_values != []:
         fmt_table = add_missing_values(fmt_table, missing_values, label="Missing")
