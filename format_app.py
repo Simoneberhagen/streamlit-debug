@@ -127,7 +127,20 @@ with col1:
     if view_mode == "Graph":
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.dataframe(table[selected_fac+"_formatted"][0])
+        univariate_table = table[selected_fac+"_formatted"][0].copy()
+        univariate_table = univariate_table.reset_index()
+        
+        new_names = {
+            "label": "Label",
+            weight: "Weight %",
+            f"{weight}_Sum": f"Total {weight}",
+            resp: f"Avg. {resp}"
+        }
+        univariate_table.rename(columns=new_names, inplace=True)
+        
+        display_columns = ["Label", f"Total {weight}", "Weight %", f"Avg. {resp}"]
+        
+        st.dataframe(univariate_table[display_columns], use_container_width=True)
 
 with col2:
     st.subheader("Format Parameters")
