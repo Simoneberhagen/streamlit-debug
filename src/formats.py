@@ -43,8 +43,19 @@ def cap_format(format, cap=np.nan, floor=np.nan):
                 floor_end_condition = (floor < row['END']) if row['EEXCL'] == 'Y' else (floor <= row['END'])
                 floor_level = floor_start_condition & floor_end_condition
 
+            # Check if both floor and cap are within the interval
+            if floor_level and cap_level:
+                new_row = row.copy()
+                new_row['START'] = floor
+                new_row['END'] = cap
+                new_row['SEXCL'] = 'N'
+                new_row['EEXCL'] = 'N'
+                new_row["LABEL"] = f"[{floor}; {cap}]"
+                new_row["HLO"] = "S"
+                new_rows.append(new_row)
+
             # Ignores levels lower than floor
-            if row["END"] < floor:
+            elif row["END"] < floor:
                 continue
 
             # If floor is included in the level, cut the level keeping only values >= floor

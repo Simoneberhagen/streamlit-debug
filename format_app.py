@@ -7,6 +7,7 @@ import streamlit as st
 import gpc_utils.sas as su
 import pyarrow.parquet as pq
 from src.univariate import univariate_plotly
+from src.formats import define_format, parse_format_dict_row
 
 
 # Load the configuration from the TOML file
@@ -57,6 +58,7 @@ if 'formats_table' not in st.session_state:
     # Store cover_map in session state
     st.session_state.cover_map = cover_map
     st.session_state.data_dict = data_dict
+    st.session_state.formats_dict = pd.read_excel(path_formats_dict)
 
 
 # Streamlit app
@@ -87,7 +89,43 @@ if st.sidebar.button("Update Format"):
     if edit_format_table:
         pass
     else:
-        pass
+        params = {
+            "distribution": dropdown_value1.lower(),
+            "num_bins": bins_num,
+            "floor": floor,
+            "lowest": lowest,
+            "cap": cap,
+            "highest": highest,
+            "missing_values": missing_value,
+            "np_values": np_value
+        }
+        
+        df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
+        
+        new_format = define_format(df=df_var, var=selected_fac, weight=weight, **params)
+        
+        st.session_state.formats_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME!="FMT_"+selected_fac]
+        st.session_state.formats_table = pd.concat([st.session_state.formats_table, new_format])
+        st.rerun()
+
+# Button to save the changes to the format and plot the updated univariate
+if st.sidebar.button("Save Parameters"):
+    
+    # Get the index of the selected factor
+    idx = st.session_state.formats_dict[st.session_state.formats_dict.factor == selected_fac].index
+    
+    # Update the parameters in the DataFrame
+    st.session_state.formats_dict.loc[idx, "distribution"] = dropdown_value1.lower()
+    st.session_state.formats_dict.loc[idx, "num_bins"] = bins_num
+    st.session_state.formats_dict.loc[idx, "floor"] = floor
+    st.session_state.formats_dict.loc[idx, "lowest"] = lowest
+    st.session_state.formats_dict.loc[idx, "cap"] = cap
+    st.session_state.formats_dict.loc[idx, "highest"] = highest
+    
+    # Save the updated DataFrame to Excel
+    st.session_state.formats_dict.to_excel(path_formats_dict, index=False)
+    st.sidebar.success("Parameters saved successfully!")
+
 
 # Create a download button
 st.sidebar.download_button(
@@ -127,27 +165,32 @@ with col2:
     st.subheader("Format Parameters")
     st.empty()  # Creates a blank space
     
+    # get parameters for the selected factor
+    factor_params = st.session_state.formats_dict[st.session_state.formats_dict.factor==selected_fac].iloc[0]
+
     # Distribution
-    dropdown_options = ["Uniform", "Normal", "Discrete"]
-    dropdown_value1 = st.selectbox("Format Distribution", dropdown_options, disabled=edit_format_table)
+    dropdown_options = ["uniform", "normal", "discrete"]
+    dropdown_value1 = st.selectbox("Format Distribution", dropdown_options, 
+                                   index=dropdown_options.index(factor_params["distribution"]),
+                                   disabled=edit_format_table)
 
     # Number of Bins
-    bins_num = st.number_input("Number of Levels", value=32, disabled=edit_format_table)
+    bins_num = st.number_input("Number of Levels", value=factor_params["num_bins"], disabled=edit_format_table)
 
     # Create two columns for numerical inputs inside col2
     num_col1, num_col2 = st.columns(2)
 
     with num_col1:
-        floor = st.number_input("Min Value", disabled=edit_format_table)
-        lowest = st.number_input("Min Level", min_value=floor, disabled=edit_format_table)
+        floor = st.number_input("Min Value", value=factor_params["floor"], disabled=edit_format_table)
+        lowest = st.number_input("Min Level", value=factor_params["lowest"], min_value=floor if not np.isnan(floor) else None, disabled=edit_format_table)
         # Missing Value
         missing_value = st.text_input("Missing Label", value="Missing", disabled=edit_format_table)
         # NP value
         np_value = st.text_input("NP Label", value="NP", disabled=edit_format_table)
 
     with num_col2:
-        cap = st.number_input("Max Value", disabled=edit_format_table)
-        highest = st.number_input("Max Level", max_value=cap, disabled=edit_format_table)
+        cap = st.number_input("Max Value", value=factor_params["cap"], disabled=edit_format_table)
+        highest = st.number_input("Max Level", value=factor_params["highest"], max_value=cap if not np.isnan(cap) else None, disabled=edit_format_table)
         # Missing Value
         missing_value = st.text_input("Missing Value", disabled=edit_format_table)
         # NP value
