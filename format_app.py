@@ -43,7 +43,7 @@ def convert_df_to_excel(df):
 if 'formats_table' not in st.session_state:
 
     # Loads format tables from file
-    st.session_state.formats_table = pd.read_excel(path_formats)[['START', 'END', 'FMTNAME', 'TYPE', 'LABEL', 'HLO', 'SEXCL', 'EEXCL']]
+    st.session_state.formats_table = pd.read_excel(path_formats, dtype={'START': str, 'END': str})[['START', 'END', 'FMTNAME', 'TYPE', 'LABEL', 'HLO', 'SEXCL', 'EEXCL']]
     # Convert DataFrame to Excel buffer
     st.session_state.excel_data = convert_df_to_excel(st.session_state.formats_table)
 
@@ -101,6 +101,7 @@ is_categorical = dist_val == "categorical"
 
 # Sidebar toggles for format parameters and table
 edit_format_table = st.sidebar.toggle("Edit Format Table", value=False)
+view_mode = st.sidebar.radio("View Mode", ["Graph", "Table"], index=0)
 
 # Main layout with two columns
 col1, col2 = st.columns([2, 1])
@@ -121,9 +122,12 @@ with col1:
     required_cols = [selected_fac + "_formatted", resp, weight]
     missing_cols = [col for col in required_cols if col not in df_var.columns]
     table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
-                                       w=weight,fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
+                                       w=weight, w_name=weight, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
-    st.plotly_chart(fig, use_container_width=True)
+    if view_mode == "Graph":
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.dataframe(table[selected_fac+"_formatted"][0])
 
 with col2:
     st.subheader("Format Parameters")

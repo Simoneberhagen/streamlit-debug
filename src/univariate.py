@@ -178,6 +178,7 @@ def univariate_plotly(df,
             x,
             y,
             w,
+            w_name='% Weight',
             path_fac=None,
             response_format_table=".4f",
             response_format_plot=None,
@@ -432,7 +433,7 @@ def univariate_plotly(df,
             data2_rf = data2
 
         fig.add_trace(
-            go.Bar(x=x_rf, y=data2_rf, name="% Weight",
+            go.Bar(x=x_rf, y=data2_rf, name=w_name,
                 marker_color=colors,
                 visible=visible,
                 opacity=opacity,
@@ -510,7 +511,9 @@ def univariate_plotly(df,
     fig.update_yaxes(title_text="Response average", secondary_y=True)
 
     fig.update_layout(
-        legend=dict(x=0.8, y=1.1, bgcolor='rgba(255, 255, 255, 0.5)')
+        legend=dict(x=0.8, y=1.1, bgcolor='rgba(0,0,0,0)'),
+        xaxis=dict(showgrid=False, zeroline=False),
+        yaxis=dict(showgrid=False, zeroline=False)
     )
 
     if html_output:
