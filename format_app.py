@@ -81,6 +81,23 @@ labels_to_factors = {row["LABEL"]: row["Factores"] for _, row in data_dict.iterr
 # Dropdown menu to select the factor based on selected category
 selected_fac = labels_to_factors[st.sidebar.selectbox("Select a factor:", labels_to_factors.keys())]
 
+# get parameters for the selected factor
+factor_params_df = st.session_state.formats_dict[st.session_state.formats_dict.factor==selected_fac]
+
+if not factor_params_df.empty:
+    factor_params = factor_params_df.iloc[0]
+else:
+    # If the factor is not in the dictionary, use an empty Series and rely on defaults from .get()
+    factor_params = pd.Series(dtype='object')
+
+# Distribution
+dropdown_options = ["uniform", "normal", "discrete", "categorical"]
+dist_val = factor_params.get("distribution", "uniform")
+if dist_val not in dropdown_options:
+    dist_val = "uniform"  # default to uniform if value is not in list
+
+is_categorical = dist_val == "categorical"
+
 # Sidebar toggles for format parameters and table
 edit_format_table = st.sidebar.toggle("Edit Format Table", value=False)
 
@@ -114,13 +131,25 @@ if st.sidebar.button("Save Parameters"):
     # Get the index of the selected factor
     idx = st.session_state.formats_dict[st.session_state.formats_dict.factor == selected_fac].index
     
-    # Update the parameters in the DataFrame
-    st.session_state.formats_dict.loc[idx, "distribution"] = dropdown_value1.lower()
-    st.session_state.formats_dict.loc[idx, "num_bins"] = bins_num
-    st.session_state.formats_dict.loc[idx, "floor"] = floor
-    st.session_state.formats_dict.loc[idx, "lowest"] = lowest
-    st.session_state.formats_dict.loc[idx, "cap"] = cap
-    st.session_state.formats_dict.loc[idx, "highest"] = highest
+    params_to_save = {
+        "factor": selected_fac,
+        "distribution": dropdown_value1.lower(),
+        "num_bins": bins_num,
+        "floor": floor,
+        "lowest": lowest,
+        "cap": cap,
+        "highest": highest
+    }
+
+    if idx.empty:
+        # Add a new row for the new factor
+        new_row_df = pd.DataFrame([params_to_save])
+        st.session_state.formats_dict = pd.concat([st.session_state.formats_dict, new_row_df], ignore_index=True)
+    else:
+        # Update the parameters in the DataFrame for the existing factor
+        for key, value in params_to_save.items():
+            if key != 'factor': # 'factor' is for lookup and should not be overwritten
+                st.session_state.formats_dict.loc[idx, key] = value
     
     # Save the updated DataFrame to Excel
     st.session_state.formats_dict.to_excel(path_formats_dict, index=False)
@@ -165,23 +194,6 @@ with col2:
     st.subheader("Format Parameters")
     st.empty()  # Creates a blank space
     
-    # get parameters for the selected factor
-    factor_params_df = st.session_state.formats_dict[st.session_state.formats_dict.factor==selected_fac]
-
-    if not factor_params_df.empty:
-        factor_params = factor_params_df.iloc[0]
-    else:
-        # If the factor is not in the dictionary, use an empty Series and rely on defaults from .get()
-        factor_params = pd.Series(dtype='object')
-
-    # Distribution
-    dropdown_options = ["uniform", "normal", "discrete", "categorical"]
-    dist_val = factor_params.get("distribution", "uniform")
-    if dist_val not in dropdown_options:
-        dist_val = "uniform"  # default to uniform if value is not in list
-    
-    is_categorical = dist_val == "categorical"
-
     dropdown_value1 = st.selectbox("Format Distribution", dropdown_options, 
                                    index=dropdown_options.index(dist_val),
                                    disabled=edit_format_table or is_categorical)
