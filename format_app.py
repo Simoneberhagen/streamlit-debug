@@ -126,6 +126,23 @@ else:
 edit_format_table = st.sidebar.toggle("Edit Format Table", value=False)
 view_mode = st.sidebar.radio("View Mode", ["Graph", "Table"], index=0)
 
+# get parameters for the selected factor
+factor_params_df = st.session_state.formats_dict[st.session_state.formats_dict.factor==selected_fac]
+
+if not factor_params_df.empty:
+    factor_params = factor_params_df.iloc[0]
+else:
+    # If the factor is not in the dictionary, use an empty Series and rely on defaults from .get()
+    factor_params = pd.Series(dtype='object')
+
+# Distribution
+dropdown_options = ["uniform", "normal", "discrete", "categorical"]
+dist_val = factor_params.get("distribution", "uniform")
+if dist_val not in dropdown_options:
+    dist_val = "uniform"  # default to uniform if value is not in list
+
+is_categorical = dist_val == "categorical"
+
 # Main layout with two columns
 col1, col2 = st.columns([2, 1])
 
