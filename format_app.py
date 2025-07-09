@@ -47,7 +47,7 @@ if 'formats_table' not in st.session_state:
     st.session_state.excel_data = convert_df_to_excel(st.session_state.formats_table)
 
     # Pyarrow parquet file with raw data
-    # st.session_state.pq_file = pq.ParquetFile(path_df)
+    st.session_state.pq_file = pq.ParquetFile(path_df)
 
     # Mapping category-factor
     data_dict = pd.read_excel(path_data_dict, sheet_name=data_dict_sheet)
@@ -68,9 +68,7 @@ model_dict = pd.read_excel(path_model_dict).set_index("model")
 selected_model = st.sidebar.selectbox("Select a Model:", model_dict.index)
 weight = model_dict.loc[selected_model, "exp"]
 resp = model_dict.loc[selected_model, "response"]
-##TODO remove
-path_df = f"C:\\Users\\z105621\\Allianz\\Synapse_Solutions_Hub - 4. MLOps_Hogar\\2025\\2. bid&fac\\Data\\{model_dict.loc[selected_model, 'cover']}.parquet"
-st.session_state.pq_file = pq.ParquetFile(path_df)
+
 
 # Sidebar category selector
 selected_cat = st.sidebar.selectbox("Select a Category:", np.sort(list(st.session_state.cover_map.keys())))
@@ -106,11 +104,18 @@ col1, col2 = st.columns([3, 1])
 # Display each plot in its respective column
 with col1:
     # get data in memory from the spark connection
-    df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
+    if "pq_file" in st.session_state and st.session_state.pq_file is not None:
+        df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
+    else:
+        st.error("Data file not loaded. Please restart the app or check the file path in config.toml.")
+        st.stop()
         
     # format the in-memory dataframe and generate a plot
     fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
     df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
+    
+    required_cols = [selected_fac + "_formatted", resp, weight]
+    missing_cols = [col for col in required_cols if col not in df_var.columns]
     table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
                                        w=weight,fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
