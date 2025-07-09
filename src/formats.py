@@ -130,10 +130,14 @@ def define_format(df, var, weight, distribution, cap=np.nan, floor=np.nan, highe
         num_bins = np.min([33, unique_num]) -1
 
     # set distribution type
+    dist = None
     if distribution == "uniform":
         dist = ss.uniform()
     elif distribution == "normal":
         dist = ss.norm(0,1)
+    elif distribution == "discrete":
+        # For discrete, we can allow the discretizer to handle it, often by frequency.
+        pass
     else:
         raise ValueError(f"Distribution {distribution} not supported")
     

@@ -101,11 +101,44 @@ is_categorical = dist_val == "categorical"
 # Sidebar toggles for format parameters and table
 edit_format_table = st.sidebar.toggle("Edit Format Table", value=False)
 
+st.sidebar.subheader("Format Parameters")
+
+dropdown_value1 = st.sidebar.selectbox("Format Distribution", dropdown_options, 
+                               index=dropdown_options.index(dist_val),
+                               disabled=edit_format_table or is_categorical)
+
+num_bins_val = factor_params.get("num_bins", 32)
+if pd.isna(num_bins_val):
+    num_bins_val = 32
+bins_num = st.sidebar.number_input("Number of Levels", value=int(num_bins_val), disabled=edit_format_table or is_categorical)
+
+floor = st.sidebar.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
+lowest = st.sidebar.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
+
+cap = st.sidebar.number_input("Max Value", value=factor_params.get("cap", np.nan), disabled=edit_format_table or is_categorical)
+highest = st.sidebar.number_input("Max Level", value=factor_params.get("highest", np.nan), max_value=cap if not pd.isna(cap) else None, disabled=edit_format_table or is_categorical)
+
+missing_values_str = st.sidebar.text_input("Missing Values (comma-separated)", value="", disabled=edit_format_table)
+np_values_str = st.sidebar.text_input("NP Values (comma-separated)", value="", disabled=edit_format_table)
+
+
 # Button to save the changes to the format and plot the updated univariate
 if st.sidebar.button("Update Format"):
     if edit_format_table:
         pass
     elif not is_categorical:
+        # Parse missing values
+        if missing_values_str:
+            missing_values = [float(x.strip()) for x in missing_values_str.split(",")]
+        else:
+            missing_values = []
+
+        # Parse NP values
+        if np_values_str:
+            np_values = [float(x.strip()) for x in np_values_str.split(",")]
+        else:
+            np_values = []
+
         params = {
             "distribution": dropdown_value1.lower(),
             "num_bins": bins_num,
@@ -113,8 +146,8 @@ if st.sidebar.button("Update Format"):
             "lowest": lowest,
             "cap": cap,
             "highest": highest,
-            "missing_values": missing_value,
-            "np_values": np_value
+            "missing_values": missing_values,
+            "np_values": np_values
         }
         
         df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
@@ -165,63 +198,25 @@ st.sidebar.download_button(
     type="primary"
 )
 
-# Create the columns for the main part of the app
-col1, col2 = st.columns([3, 1])
-
 # Display each plot in its respective column
-with col1:
-    # get data in memory from the spark connection
-    if "pq_file" in st.session_state and st.session_state.pq_file is not None:
-        df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
-    else:
-        st.error("Data file not loaded. Please restart the app or check the file path in config.toml.")
-        st.stop()
-        
-    # format the in-memory dataframe and generate a plot
-    fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
-    df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
+# get data in memory from the spark connection
+if "pq_file" in st.session_state and st.session_state.pq_file is not None:
+    df_var = st.session_state.pq_file.read(columns=[selected_fac, resp, weight], use_pandas_metadata=True).to_pandas()
+else:
+    st.error("Data file not loaded. Please restart the app or check the file path in config.toml.")
+    st.stop()
     
-    required_cols = [selected_fac + "_formatted", resp, weight]
-    missing_cols = [col for col in required_cols if col not in df_var.columns]
-    table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
-                                       w=weight,fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
+# format the in-memory dataframe and generate a plot
+fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
+df_var[selected_fac+"_formatted"] = su.apply_format(vec=df_var[selected_fac], fmt_table=fmt_table)
 
-    st.plotly_chart(fig, use_container_width=True)
+required_cols = [selected_fac + "_formatted", resp, weight]
+missing_cols = [col for col in required_cols if col not in df_var.columns]
+table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
+                                   w=weight,fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
-# Add numerical inputs and dropdowns in col2 if show_format_params is True
-with col2:
+st.plotly_chart(fig, use_container_width=True)
 
-    st.subheader("Format Parameters")
-    st.empty()  # Creates a blank space
-    
-    dropdown_value1 = st.selectbox("Format Distribution", dropdown_options, 
-                                   index=dropdown_options.index(dist_val),
-                                   disabled=edit_format_table or is_categorical)
-
-    # Number of Bins
-    num_bins_val = factor_params.get("num_bins", 32)
-    if pd.isna(num_bins_val):
-        num_bins_val = 32
-    bins_num = st.number_input("Number of Levels", value=int(num_bins_val), disabled=edit_format_table or is_categorical)
-
-    # Create two columns for numerical inputs inside col2
-    num_col1, num_col2 = st.columns(2)
-
-    with num_col1:
-        floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
-        lowest = st.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
-        # Missing Value
-        missing_value = st.text_input("Missing Label", value="Missing", disabled=edit_format_table)
-        # NP value
-        np_value = st.text_input("NP Label", value="NP", disabled=edit_format_table)
-
-    with num_col2:
-        cap = st.number_input("Max Value", value=factor_params.get("cap", np.nan), disabled=edit_format_table or is_categorical)
-        highest = st.number_input("Max Level", value=factor_params.get("highest", np.nan), max_value=cap if not pd.isna(cap) else None, disabled=edit_format_table or is_categorical)
-        # Missing Value
-        missing_value = st.text_input("Missing Value", disabled=edit_format_table)
-        # NP value
-        np_value = st.text_input("NP Value", disabled=edit_format_table)
 
 if edit_format_table:
     st.subheader("Format Table")
