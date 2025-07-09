@@ -55,7 +55,7 @@ def cap_format(format, cap=np.nan, floor=np.nan):
                 new_rows.append(new_row)
 
             # Ignores levels lower than floor
-            elif row["END"] < floor:
+            elif (floor > row['END']) or ((floor == row['END']) and (row['EEXCL'] == 'Y')):
                 continue
 
             # If floor is included in the level, cut the level keeping only values >= floor
