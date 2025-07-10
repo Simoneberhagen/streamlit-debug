@@ -130,17 +130,24 @@ def set_factors_hyperparameters(data_dict, pd_gar, year):
                 
                 base_level_position = pd_gar[factor].mode().cat.codes.iloc[0]+1
                 base_level_value = pd_gar[factor].cat.categories[base_level_position-1]
-                caracters_list = ['[', '(',')',']','>','<']
-                           
-                if not any(c in str(base_level_value) for c in caracters_list):
-                    for idx in range(1, 4): 
-                        base_level_value = pd_gar[factor].value_counts().index[idx]
-                        base_level = pd_gar[factor].cat.categories.get_loc(base_level_value) + 1
                 
-                        if any(c in str(base_level_value) for c in caracters_list):
+                # Define characters that identify binned or special categories to be avoided as base level
+                excluded_chars = ['[', '(', ')', ']', '>', '<']
+                excluded_labels = ["Missing", "Desconocido", "Other", "NP"]
+
+                # Check if the most frequent value (mode) is a binned or excluded category
+                if any(c in str(base_level_value) for c in excluded_chars) or base_level_value in excluded_labels:
+                    # If it is, find the next most frequent value that is not a binned or excluded category
+                    base_level = base_level_position # Fallback to mode
+                    for idx in range(1, len(pd_gar[factor].value_counts())):
+                        next_most_frequent_value = pd_gar[factor].value_counts().index[idx]
+                        if not any(c in str(next_most_frequent_value) for c in excluded_chars) and next_most_frequent_value not in excluded_labels:
+                            base_level_value = next_most_frequent_value
+                            base_level = pd_gar[factor].cat.categories.get_loc(base_level_value) + 1
                             break
-                else:   
-                    base_level=pd_gar[factor].mode().cat.codes.iloc[0]+1
+                else:
+                    # If the mode is not a binned or excluded category, use it as the base level
+                    base_level = base_level_position
                       
         variable_mapping[factor] = { 'format': data_dict.loc[factor,"format"].upper(),
                                      'base_level':base_level ,
@@ -177,3 +184,33 @@ def crear_random(df, resp, w, rand_factor):
     df[rand_factor] = df[rand_factor].apply(lambda x: str(x).zfill(2))
     
     return df[rand_factor], split_metrics[best_seed]
+
+def determine_default_base_level(univariate_table, weight, non_base_labels):
+    """
+    Determines the default base level from a univariate table.
+
+    Args:
+        univariate_table (pd.DataFrame): The univariate table.
+        weight (str): The name of the weight column.
+        non_base_labels (list): A list of labels to exclude.
+
+    Returns:
+        str: The default base level.
+    """
+    import re
+
+    excluded_chars = ['[', '(', ')', ']', '>', '<']
+
+    # Filter out non-base labels
+    eligible_levels = univariate_table[~univariate_table['label'].isin(non_base_labels)]
+
+    # Further filter out labels containing any of the excluded characters
+    for char in excluded_chars:
+        eligible_levels = eligible_levels[~eligible_levels['label'].astype(str).str.contains(re.escape(char))]
+
+    if not eligible_levels.empty:
+        default_base_level = eligible_levels.loc[eligible_levels[weight].idxmax()]['label']
+    else:
+        default_base_level = None
+    
+    return default_base_level
