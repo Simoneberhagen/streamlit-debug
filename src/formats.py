@@ -125,9 +125,8 @@ def define_format(df, var, weight, distribution, cap=np.nan, floor=np.nan, highe
     df_subset.loc[df[var] < lowest, var] = lowest
 
     # Set number of bins
-    if np.isnan(num_bins):
-        unique_num = len(df_subset[var].unique())
-        num_bins = np.min([33, unique_num]) -1
+    unique_num = len(df_subset[var].unique())
+    num_bins = np.min([num_bins, unique_num-1])
 
     # set distribution type
     dist = None
