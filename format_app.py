@@ -206,10 +206,11 @@ with col2:
     if current_selection in base_level_filtered:
         base_level_index = base_level_filtered.index(current_selection)
     
-    selected_base_level_ui = st.selectbox("Base Level", base_level_filtered, index=base_level_index, disabled=edit_format_table)
+    selected_base_level_ui = st.selectbox("Base Level", base_level_filtered, index=base_level_index, disabled=edit_format_table, key=f"base_level_select_{selected_fac}")
     
-    # Update factor-specific session state with current selection
-    st.session_state[f"current_base_level_{selected_fac}"] = selected_base_level_ui
+    # Only update session state if the value actually changed
+    if selected_base_level_ui != st.session_state.get(f"current_base_level_{selected_fac}"):
+        st.session_state[f"current_base_level_{selected_fac}"] = selected_base_level_ui
 
     floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
     lowest = st.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
