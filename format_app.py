@@ -8,6 +8,7 @@ import gpc_utils.sas as su
 import pyarrow.parquet as pq
 from src.univariate import univariate_plotly
 from src.formats import define_format, parse_format_dict_row
+from src.base_level import determine_base_level, get_base_level_from_dict
 
 
 # Load the configuration from the TOML file
@@ -103,29 +104,19 @@ else:
 univariate_df, _ = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, w=weight, output=True, show_fig=False, retfig=True)
 univariate_table = univariate_df[selected_fac+"_formatted"][0]
 
-# Determine default base level
+# Get base level from dictionary or calculate default
+default_base_level = get_base_level_from_dict(st.session_state.formats_dict, selected_fac, univariate_table, weight)
+
+# Sidebar controls for base level - dropdown only
+level_options = list(univariate_table['label'])
 non_base_labels = ["Missing", "Other", "NP"]
-eligible_levels = univariate_table[~univariate_table['label'].isin(non_base_labels)]
-if not eligible_levels.empty:
-    default_base_level = eligible_levels.loc[eligible_levels[weight].idxmax()]['label']
-else:
-    default_base_level = None
+filtered_options = [level for level in level_options if level not in non_base_labels]
 
-# Sidebar controls for base level
-lock_base_level = st.sidebar.checkbox("Lock Base Level", value=True)
+index = 0
+if default_base_level in filtered_options:
+    index = filtered_options.index(default_base_level)
 
-if lock_base_level:
-    selected_base_level = default_base_level
-    st.sidebar.selectbox("Base Level", [selected_base_level] if selected_base_level else [], disabled=True)
-else:
-    level_options = list(univariate_table['label'])
-    filtered_options = [level for level in level_options if level not in non_base_labels]
-    
-    index = 0
-    if default_base_level in filtered_options:
-        index = filtered_options.index(default_base_level)
-
-    selected_base_level = st.sidebar.selectbox("Base Level", filtered_options, index=index, disabled=False)
+selected_base_level = st.sidebar.selectbox("Base Level", filtered_options, index=index)
 
 
 # Sidebar toggles for format parameters and table
@@ -149,6 +140,17 @@ if dist_val not in dropdown_options:
 
 is_categorical = dist_val == "categorical"
 
+# Determine format base level early for use in plotting
+base_level_options = list(univariate_table['label'])
+base_level_filtered = [level for level in base_level_options if level not in ["Missing", "Other", "NP"]]
+
+# Get stored base level or use default
+stored_base = factor_params.get("base_level", "")
+if stored_base and stored_base in base_level_filtered:
+    format_base_level = stored_base
+else:
+    format_base_level = default_base_level if default_base_level else (base_level_filtered[0] if base_level_filtered else None)
+
 # Main layout with two columns
 col1, col2 = st.columns([2, 1])
 
@@ -157,7 +159,7 @@ with col1:
     required_cols = [selected_fac + "_formatted", resp, weight]
     missing_cols = [col for col in required_cols if col not in df_var.columns]
     table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
-                                       w=weight, w_name=weight, base_level=selected_base_level, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
+                                       w=weight, w_name=weight, base_level=format_base_level, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
     if view_mode == "Graph":
         st.plotly_chart(fig, use_container_width=True)
@@ -193,6 +195,13 @@ with col2:
     if pd.isna(num_decimals_val):
         num_decimals_val = default_num_decimals
     num_decimals = st.number_input("Number of Decimals", value=int(num_decimals_val), disabled=edit_format_table or is_categorical)
+
+    # Base Level dropdown in format parameters
+    base_level_index = 0
+    if format_base_level in base_level_filtered:
+        base_level_index = base_level_filtered.index(format_base_level)
+    
+    format_base_level = st.selectbox("Base Level", base_level_filtered, index=base_level_index, disabled=edit_format_table)
 
     floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
     lowest = st.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
@@ -258,7 +267,8 @@ with col2:
             "floor": floor,
             "lowest": lowest,
             "cap": cap,
-            "highest": highest
+            "highest": highest,
+            "base_level": format_base_level
         }
 
         if idx.empty:

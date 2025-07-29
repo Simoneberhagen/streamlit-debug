@@ -1,0 +1,31 @@
+# Core data manipulation and analysis
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Web application framework
+streamlit>=1.28.0
+
+# Configuration file handling
+toml>=0.10.2
+
+# Data serialization
+pickle-mixin>=1.0.0
+
+# Data formats and I/O
+pyarrow>=10.0.0
+openpyxl>=3.0.9
+xlsxwriter>=3.0.0
+
+# Scientific computing and statistics
+scipy>=1.9.0
+
+# Plotting and visualization
+plotly>=5.0.0
+matplotlib>=3.5.0
+
+# Custom utility package (if available in your environment)
+# Note: gpc_utils appears to be a custom package - ensure it's installed in your environment
+# gpc_utils
+
+# PySpark (if used in some modules)
+# pyspark>=3.0.0
