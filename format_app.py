@@ -89,6 +89,11 @@ labels_to_factors = {row["LABEL"]: row["Factores"] for _, row in data_dict.iterr
 # Dropdown menu to select the factor based on selected category
 selected_fac = labels_to_factors[st.sidebar.selectbox("Select a factor:", labels_to_factors.keys())]
 
+# Action buttons moved here from format parameters
+st.sidebar.markdown("---")
+update_format_clicked = st.sidebar.button("Update Format")
+save_parameters_clicked = st.sidebar.button("Save Parameters")
+
 # format the in-memory dataframe and generate a plot
 fmt_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME=="FMT_"+selected_fac]
 df_var = df_var_full[[selected_fac, resp, weight]].copy()
@@ -142,6 +147,12 @@ if stored_base and stored_base in base_level_filtered:
 else:
     format_base_level = default_base_level if default_base_level else (base_level_filtered[0] if base_level_filtered else None)
 
+# Initialize current base level for this factor if not already set or if factor changed
+factor_key = f"current_base_level_{selected_fac}"
+if factor_key not in st.session_state or st.session_state.get('last_selected_fac') != selected_fac:
+    st.session_state[factor_key] = format_base_level
+    st.session_state['last_selected_fac'] = selected_fac
+
 # Main layout with two columns
 col1, col2 = st.columns([2, 1])
 
@@ -149,8 +160,8 @@ with col1:
     # Display each plot in its respective column
     required_cols = [selected_fac + "_formatted", resp, weight]
     missing_cols = [col for col in required_cols if col not in df_var.columns]
-    # Use current base level selection for immediate visual feedback
-    current_base_level = st.session_state.get('current_base_level', format_base_level)
+    # Use factor-specific current base level selection for immediate visual feedback
+    current_base_level = st.session_state.get(f"current_base_level_{selected_fac}", format_base_level)
     table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
                                        w=weight, w_name=weight, base_level=current_base_level, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
@@ -190,16 +201,15 @@ with col2:
     num_decimals = st.number_input("Number of Decimals", value=int(num_decimals_val), disabled=edit_format_table or is_categorical)
 
     # Base Level dropdown in format parameters
+    current_selection = st.session_state.get(f"current_base_level_{selected_fac}", format_base_level)
     base_level_index = 0
-    if format_base_level in base_level_filtered:
-        base_level_index = base_level_filtered.index(format_base_level)
+    if current_selection in base_level_filtered:
+        base_level_index = base_level_filtered.index(current_selection)
     
     selected_base_level_ui = st.selectbox("Base Level", base_level_filtered, index=base_level_index, disabled=edit_format_table)
     
-    # Initialize session state with default if not set, then update with current selection
-    if 'current_base_level' not in st.session_state:
-        st.session_state['current_base_level'] = format_base_level
-    st.session_state['current_base_level'] = selected_base_level_ui
+    # Update factor-specific session state with current selection
+    st.session_state[f"current_base_level_{selected_fac}"] = selected_base_level_ui
 
     floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
     lowest = st.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
@@ -211,7 +221,7 @@ with col2:
     np_values_str = st.text_input("NP Values (comma-separated)", value="", disabled=edit_format_table)
 
     # Button to save the changes to the format and plot the updated univariate
-    if st.button("Update Format"):
+    if update_format_clicked:
         if edit_format_table:
             if st.session_state.edited_format_table is not None:
                 st.session_state.formats_table = st.session_state.formats_table[st.session_state.formats_table.FMTNAME!="FMT_"+selected_fac]
@@ -252,7 +262,7 @@ with col2:
             st.rerun()
 
     # Button to save the changes to the format and plot the updated univariate
-    if st.button("Save Parameters"):
+    if save_parameters_clicked:
         
         # Get the index of the selected factor
         idx = st.session_state.formats_dict[st.session_state.formats_dict.factor == selected_fac].index
