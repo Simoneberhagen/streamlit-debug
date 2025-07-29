@@ -149,8 +149,10 @@ with col1:
     # Display each plot in its respective column
     required_cols = [selected_fac + "_formatted", resp, weight]
     missing_cols = [col for col in required_cols if col not in df_var.columns]
+    # Use current base level selection for immediate visual feedback
+    current_base_level = st.session_state.get('current_base_level', format_base_level)
     table, fig = univariate_plotly(df_var, x=selected_fac+"_formatted", y=resp, fig_title=data_dict[data_dict.Factores==selected_fac]["LABEL"].item(),
-                                       w=weight, w_name=weight, base_level=format_base_level, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
+                                       w=weight, w_name=weight, base_level=current_base_level, fig_w=1100, fig_h=700, retfig=True, show_fig=False, output=True)
 
     if view_mode == "Graph":
         st.plotly_chart(fig, use_container_width=True)
@@ -192,7 +194,10 @@ with col2:
     if format_base_level in base_level_filtered:
         base_level_index = base_level_filtered.index(format_base_level)
     
-    format_base_level = st.selectbox("Base Level", base_level_filtered, index=base_level_index, disabled=edit_format_table)
+    selected_base_level_ui = st.selectbox("Base Level", base_level_filtered, index=base_level_index, disabled=edit_format_table)
+    
+    # Store current selection for immediate visual feedback
+    st.session_state['current_base_level'] = selected_base_level_ui
 
     floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
     lowest = st.number_input("Min Level", value=factor_params.get("lowest", np.nan), min_value=floor if not pd.isna(floor) else None, disabled=edit_format_table or is_categorical)
@@ -259,7 +264,7 @@ with col2:
             "lowest": lowest,
             "cap": cap,
             "highest": highest,
-            "base_level": format_base_level
+            "base_level": selected_base_level_ui
         }
 
         if idx.empty:
