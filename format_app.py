@@ -107,16 +107,7 @@ univariate_table = univariate_df[selected_fac+"_formatted"][0]
 # Get base level from dictionary or calculate default
 default_base_level = get_base_level_from_dict(st.session_state.formats_dict, selected_fac, univariate_table, weight)
 
-# Sidebar controls for base level - dropdown only
-level_options = list(univariate_table['label'])
-non_base_labels = ["Missing", "Other", "NP"]
-filtered_options = [level for level in level_options if level not in non_base_labels]
-
-index = 0
-if default_base_level in filtered_options:
-    index = filtered_options.index(default_base_level)
-
-selected_base_level = st.sidebar.selectbox("Base Level", filtered_options, index=index)
+# Base level is now only in format parameters section
 
 
 # Sidebar toggles for format parameters and table
