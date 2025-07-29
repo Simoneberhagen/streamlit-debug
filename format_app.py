@@ -196,7 +196,9 @@ with col2:
     
     selected_base_level_ui = st.selectbox("Base Level", base_level_filtered, index=base_level_index, disabled=edit_format_table)
     
-    # Store current selection for immediate visual feedback
+    # Initialize session state with default if not set, then update with current selection
+    if 'current_base_level' not in st.session_state:
+        st.session_state['current_base_level'] = format_base_level
     st.session_state['current_base_level'] = selected_base_level_ui
 
     floor = st.number_input("Min Value", value=factor_params.get("floor", np.nan), disabled=edit_format_table or is_categorical)
