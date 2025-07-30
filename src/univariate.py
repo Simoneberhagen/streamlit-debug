@@ -3,8 +3,8 @@
 Utilities to interface with Emblem using Python.
 
 """
+import polars as pl
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from itertools import groupby

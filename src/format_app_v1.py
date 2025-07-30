@@ -1,6 +1,6 @@
 import pickle
+import polars as pl
 import pandas as pd
-import numpy as np
 import streamlit as st
 import io
 
@@ -34,7 +34,7 @@ if 'ow_dict' not in st.session_state:
     st.session_state.excel_data = convert_df_to_excel(st.session_state.formats_table)
 
     # Factors list
-    factors = np.sort(list(st.session_state.ow_dict.keys()))
+    factors = sorted(list(st.session_state.ow_dict.keys()))
 
     # Mapping category-factor
     data_dict = pd.read_excel(data_dict_path, sheet_name=data_dict_sheet)[["CATEGORÍA", "Factores"]]

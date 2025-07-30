@@ -1,7 +1,7 @@
 import io
 import toml
 import pickle
-import numpy as np
+import polars as pl
 import pandas as pd
 import streamlit as st
 import gpc_utils.sas as su

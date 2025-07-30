@@ -1,6 +1,7 @@
 # Core data manipulation and analysis
 pandas>=1.5.0
 numpy>=1.21.0
+polars>=0.20.0
 
 # Web application framework
 streamlit>=1.28.0

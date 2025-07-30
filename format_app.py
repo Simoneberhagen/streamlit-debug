@@ -1,7 +1,7 @@
 import io
 import toml
 import pickle
-import numpy as np
+import polars as pl
 import pandas as pd
 import streamlit as st
 import gpc_utils.sas as su
@@ -81,7 +81,7 @@ else:
     st.stop()
 
 # Sidebar category selector
-selected_cat = st.sidebar.selectbox("Select a Category:", np.sort(list(st.session_state.cover_map.keys())))
+selected_cat = st.sidebar.selectbox("Select a Category:", sorted(list(st.session_state.cover_map.keys())))
 factors_by_cat = st.session_state.cover_map.get(selected_cat)
 data_dict = st.session_state.data_dict[st.session_state.data_dict.Factores.isin(factors_by_cat)]
 labels_to_factors = {row["LABEL"]: row["Factores"] for _, row in data_dict.iterrows()}

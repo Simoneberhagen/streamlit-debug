@@ -1,5 +1,5 @@
 from os import environ
-import numpy as np
+import polars as pl
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, sum, when
 
@@ -157,6 +157,7 @@ def set_factors_hyperparameters(data_dict, pd_gar, year):
 
 
 def crear_random(df, resp, w, rand_factor):
+    import numpy as np
 
     split_metrics = {}
 
@@ -165,32 +166,37 @@ def crear_random(df, resp, w, rand_factor):
         # define random state
         rng = np.random.RandomState(seed)
         # generate random train-test split
-        df[rand_factor] = rng.randint(1, 11, len(df))
-        trn_subset = df[rand_factor] <= 8
-        test_subset = df[rand_factor] > 8
-        # compute average wheighted response over train and tes
-        obs_train = df.loc[trn_subset, resp].sum()/df.loc[trn_subset, w].sum()
-        obs_test = df.loc[test_subset, resp].sum()/df.loc[test_subset, w].sum()
-        rel_dif = np.abs(obs_train - obs_test)/obs_train
+        random_values = rng.randint(1, 11, len(df))
+        df_with_random = df.with_columns(pl.Series(rand_factor, random_values))
+        
+        trn_subset = df_with_random.filter(pl.col(rand_factor) <= 8)
+        test_subset = df_with_random.filter(pl.col(rand_factor) > 8)
+        
+        # compute average wheighted response over train and test
+        obs_train = trn_subset[resp].sum() / trn_subset[w].sum()
+        obs_test = test_subset[resp].sum() / test_subset[w].sum()
+        rel_dif = abs(obs_train - obs_test) / obs_train
 
         split_metrics[seed] = {"obs_train": obs_train, "obs_test": obs_test, "rel_dif": rel_dif}
 
         if rel_dif < 0.01:
+            best_seed = seed
             break
+    else:
+        best_seed = min(split_metrics, key=lambda k: split_metrics[k]["rel_dif"])
     
-    best_seed = min(split_metrics, key=split_metrics.get("rel_dif"))
     rng = np.random.RandomState(best_seed)
-    df[rand_factor] = rng.randint(1, 11, len(df))
-    df[rand_factor] = df[rand_factor].apply(lambda x: str(x).zfill(2))
+    random_values = rng.randint(1, 11, len(df))
+    random_series = pl.Series([str(x).zfill(2) for x in random_values])
     
-    return df[rand_factor], split_metrics[best_seed]
+    return random_series, split_metrics[best_seed]
 
 def determine_default_base_level(univariate_table, weight, non_base_labels):
     """
     Determines the default base level from a univariate table.
 
     Args:
-        univariate_table (pd.DataFrame): The univariate table.
+        univariate_table (pl.DataFrame): The univariate table.
         weight (str): The name of the weight column.
         non_base_labels (list): A list of labels to exclude.
 
@@ -202,14 +208,14 @@ def determine_default_base_level(univariate_table, weight, non_base_labels):
     excluded_chars = ['[', '(', ')', ']', '>', '<']
 
     # Filter out non-base labels
-    eligible_levels = univariate_table[~univariate_table['label'].isin(non_base_labels)]
+    eligible_levels = univariate_table.filter(~pl.col('label').is_in(non_base_labels))
 
     # Further filter out labels containing any of the excluded characters
     for char in excluded_chars:
-        eligible_levels = eligible_levels[~eligible_levels['label'].astype(str).str.contains(re.escape(char))]
+        eligible_levels = eligible_levels.filter(~pl.col('label').cast(pl.Utf8).str.contains(re.escape(char)))
 
-    if not eligible_levels.empty:
-        default_base_level = eligible_levels.loc[eligible_levels[weight].idxmax()]['label']
+    if len(eligible_levels) > 0:
+        default_base_level = eligible_levels.sort(weight, descending=True).row(0, named=True)['label']
     else:
         default_base_level = None
     

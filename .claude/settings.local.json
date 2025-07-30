@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python:*)",
-      "WebFetch(domain:www.wtwco.com)"
+      "WebFetch(domain:www.wtwco.com)",
+      "Bash(pip install:*)"
     ],
     "deny": []
   }
